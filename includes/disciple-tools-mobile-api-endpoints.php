@@ -26,7 +26,7 @@ class Disciple_Tools_Mobile_API_Endpoints
      */
     public static function instance()
     {
-        if (is_null(self::$_instance)) {
+        if (is_null( self::$_instance )) {
             self::$_instance = new self();
         }
         return self::$_instance;
@@ -44,8 +44,8 @@ class Disciple_Tools_Mobile_API_Endpoints
      */
     public function __construct()
     {
-        $this->namespace = $this->context . "/v" . intval($this->version);
-        add_action('rest_api_init', [$this, 'add_api_routes']);
+        $this->namespace = $this->context . "/v" . intval( $this->version );
+        add_action( 'rest_api_init', [ $this, 'add_api_routes' ] );
     } // End __construct()
 
     /**
@@ -58,7 +58,7 @@ class Disciple_Tools_Mobile_API_Endpoints
         register_rest_route(
             $this->namespace, 'contacts', [
                 'methods' => 'GET',
-                'callback' => [$this, 'get_contacts'],
+                'callback' => [ $this, 'get_contacts' ],
             ]
         );
     }
@@ -72,29 +72,27 @@ class Disciple_Tools_Mobile_API_Endpoints
      * @since  0.1.0
      * @return array|WP_Error return the user's contacts
      */
-    public function get_contacts(WP_REST_Request $request)
+    public function get_contacts( WP_REST_Request $request)
     {
-        $params = $request->get_params();
         $current_user = wp_get_current_user();
         $connected = new WP_Query( array(
             'connected_type' => 'team_member_locations',
             'connected_items' => $current_user,
-            'nopaging' => true,
         ) );
         $location_meta = get_post_meta( $connected->post->ID, 'raw', true );
         $user_location = $location_meta['results'][0]['geometry']['location'];
 
         // Get contacts assigned to current user and in seeker_path "Contact Attempt Needed"
         $result = Disciple_Tools_Contacts::search_viewable_contacts([
-            assigned_to => ['me'],
-            seeker_path => ['none']
+            assigned_to => [ 'me' ],
+            seeker_path => [ 'none' ]
         ]);
 
-        if (is_wp_error($result)) {
+        if (is_wp_error( $result )) {
             return $result;
         }
         return [
-            "contacts" => $this->add_related_info_to_contacts($result["contacts"], $user_location),
+            "contacts" => $this->add_related_info_to_contacts( $result["contacts"], $user_location ),
             "total" => $result["total"],
             "deleted" => $result["deleted"],
             "user_location" => $user_location
@@ -130,7 +128,7 @@ class Disciple_Tools_Mobile_API_Endpoints
                 $contact_location = $geometry['location'];
                 $contact_array['locations_geometry'][] = $geometry;
 
-                if (!empty($geometry)) {
+                if ( !empty( $geometry )) {
                     $distance_miles = $this->calculate_distance(
                         $user_location['lat'],
                         $user_location['lng'],
@@ -236,16 +234,16 @@ class Disciple_Tools_Mobile_API_Endpoints
      */
     private static function calculate_distance( $lat1, $lng1, $lat2, $lng2, $unit ) {
         $theta = $lng1 - $lng2;
-        $dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) +  cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta));
-        $dist = acos($dist);
-        $dist = rad2deg($dist);
+        $dist = sin( deg2rad( $lat1 ) ) * sin( deg2rad( $lat2 ) ) + cos( deg2rad( $lat1 ) ) * cos( deg2rad( $lat2 ) ) * cos( deg2rad( $theta ) );
+        $dist = acos( $dist );
+        $dist = rad2deg( $dist );
         $miles = $dist * 60 * 1.1515;
-        $unit = strtoupper($unit);
+        $unit = strtoupper( $unit );
 
         if ($unit == "K") {
-            return ($miles * 1.609344);
+            return ( $miles * 1.609344 );
         } else if ($unit == "N") {
-            return ($miles * 0.8684);
+            return ( $miles * 0.8684 );
         } else {
             return $miles;
         }
