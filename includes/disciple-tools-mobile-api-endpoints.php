@@ -77,6 +77,14 @@ class Disciple_Tools_Mobile_API_Endpoints
     public function get_contacts(WP_REST_Request $request)
     {
         $params = $request->get_params();
+        $current_user = wp_get_current_user();
+        $connected = new WP_Query( array(
+            'connected_type' => 'team_member_locations',
+            'connected_items' => $current_user,
+            'nopaging' => true,
+        ) );
+        $location_meta = get_post_meta( $connected->post->ID, 'raw', true );
+        $user_location = $location_meta['results'][0]['geometry']['location'];
         $most_recent = isset($params["most_recent"]) ? $params["most_recent"] : 0;
         $result = Disciple_Tools_Contacts::get_viewable_contacts((int)$most_recent, true);
 //        $result = Disciple_Tools_Mobile_Contacts::get_contacts_needing_attempt((int)$most_recent, true);
@@ -84,9 +92,10 @@ class Disciple_Tools_Mobile_API_Endpoints
             return $result;
         }
         return [
-            "contacts" => $this->add_related_info_to_contacts($result["contacts"]),
+            "contacts" => $this->add_related_info_to_contacts($result["contacts"], $user_location),
             "total" => $result["total"],
-            "deleted" => $result["deleted"]
+            "deleted" => $result["deleted"],
+            "user_location" => $user_location
         ];
     }
 
@@ -95,7 +104,7 @@ class Disciple_Tools_Mobile_API_Endpoints
      *
      * @return array
      */
-    private function add_related_info_to_contacts( array $contacts ): array
+    private function add_related_info_to_contacts( array $contacts, $user_location ): array
     {
         p2p_type( 'contacts_to_locations' )->each_connected( $contacts, [], 'locations' );
         p2p_type( 'contacts_to_groups' )->each_connected( $contacts, [], 'groups' );
@@ -109,14 +118,34 @@ class Disciple_Tools_Mobile_API_Endpoints
             $contact_array['permalink'] = get_post_permalink( $contact->ID );
             $contact_array['overall_status'] = get_post_meta( $contact->ID, 'overall_status', true );
             $contact_array['locations'] = [];
-            $contact_array['locations_raw'] = [];
             $contact_array['locations_geometry'] = [];
+            $contact_array['distance'] = [];
             foreach ( $contact->locations as $location ) {
                 $contact_array['locations'][] = $location->post_title;
 
                 $raw = get_post_meta( $location->ID, 'raw', true );
-                $contact_array['locations_raw'][] = $raw;
-                $contact_array['locations_geometry'][] = $raw['results'][0]['geometry'];
+                $geometry = $raw['results'][0]['geometry'];
+                $contact_location = $geometry['location'];
+                $contact_array['locations_geometry'][] = $geometry;
+
+                if (!empty($geometry)) {
+                    $distance_miles = $this->calculate_distance(
+                        $user_location['lat'],
+                        $user_location['lng'],
+                        $contact_location['lat'],
+                        $contact_location['lng'],
+                        'M'
+                    );
+                    $contact_array['distance'][] = [
+                        'miles' => $distance_miles,
+                        'kilometers' => $distance_miles * 1.609344
+                    ];
+                } else {
+                    $contact_array['distance'][] = [
+                        'miles' => null,
+                        'kilometers' => null
+                    ];
+                }
             }
             $contact_array['groups'] = [];
             foreach ( $contact->groups as $group ) {
@@ -189,6 +218,34 @@ class Disciple_Tools_Mobile_API_Endpoints
             return false;
 //            @todo move error to saving
 //            throw new Error( "Expected yes or no, instead got $yes_no" );
+        }
+    }
+
+    /**
+     * Calculate distance between two points given by latitude and longitude coordinates.
+     * Copied from https://www.geodatasource.com/developers/php
+     *
+     * @param $lat1
+     * @param $lng1
+     * @param $lat2
+     * @param $lng2
+     * @param string $unit - Unit of measure desired. M=miles (default), K=kilometers, N=nautical miles
+     * @return float
+     */
+    private static function calculate_distance( $lat1, $lng1, $lat2, $lng2, $unit ) {
+        $theta = $lng1 - $lng2;
+        $dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) +  cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta));
+        $dist = acos($dist);
+        $dist = rad2deg($dist);
+        $miles = $dist * 60 * 1.1515;
+        $unit = strtoupper($unit);
+
+        if ($unit == "K") {
+            return ($miles * 1.609344);
+        } else if ($unit == "N") {
+            return ($miles * 0.8684);
+        } else {
+            return $miles;
         }
     }
 }
