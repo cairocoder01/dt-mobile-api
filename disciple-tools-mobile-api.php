@@ -111,6 +111,7 @@ class DT_Mobile_API {
      */
     private function includes() {
 //        require_once( 'includes/admin/admin-menu-and-tabs.php' );
+        require_once('includes/disciple-tools-mobile-api-endpoints.php');
     }
 
     /**
