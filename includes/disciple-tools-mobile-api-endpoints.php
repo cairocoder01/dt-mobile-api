@@ -46,8 +46,6 @@ class Disciple_Tools_Mobile_API_Endpoints
     {
         $this->namespace = $this->context . "/v" . intval($this->version);
         add_action('rest_api_init', [$this, 'add_api_routes']);
-
-//        require_once( 'contacts.php' );
     } // End __construct()
 
     /**
@@ -85,9 +83,13 @@ class Disciple_Tools_Mobile_API_Endpoints
         ) );
         $location_meta = get_post_meta( $connected->post->ID, 'raw', true );
         $user_location = $location_meta['results'][0]['geometry']['location'];
-        $most_recent = isset($params["most_recent"]) ? $params["most_recent"] : 0;
-        $result = Disciple_Tools_Contacts::get_viewable_contacts((int)$most_recent, true);
-//        $result = Disciple_Tools_Mobile_Contacts::get_contacts_needing_attempt((int)$most_recent, true);
+
+        // Get contacts assigned to current user and in seeker_path "Contact Attempt Needed"
+        $result = Disciple_Tools_Contacts::search_viewable_contacts([
+            assigned_to => ['me'],
+            seeker_path => ['none']
+        ]);
+
         if (is_wp_error($result)) {
             return $result;
         }
